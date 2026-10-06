@@ -1,7 +1,7 @@
 // Forma service worker: HTML всегда с сети (правки приходят сразу), оффлайн — из кэша.
-const V = "20261006-180423";
+const V = "20261006-183350";
 const C = "forma-" + V;
-const PRE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon-180.png", "./fonts/fonts.css", "./fonts/onest-cyrillic-wght-normal.woff2", "./fonts/onest-latin-wght-normal.woff2", "./fonts/geologica-cyrillic-wght-normal.woff2", "./fonts/geologica-latin-wght-normal.woff2"];
+const PRE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon-180.png", "./fonts/fonts.css", "./fonts/onest-cyrillic-wght-normal.woff2", "./fonts/onest-latin-wght-normal.woff2"];
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(PRE)).catch(() => {})); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== C).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
