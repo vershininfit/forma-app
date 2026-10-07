@@ -1,5 +1,5 @@
 // Forma service worker: HTML всегда с сети (правки приходят сразу), оффлайн — из кэша.
-const V = "20261007-215534";
+const V = "20261007-224031";
 const C = "forma-" + V;
 const PRE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon-180.png", "./fonts/fonts.css", "./lib/zxing.min.js", "./data/base_products.json", "./data/ru_products.json", "./fonts/onest-cyrillic-wght-normal.woff2", "./fonts/onest-latin-wght-normal.woff2"];
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(PRE)).catch(() => {})); });
