@@ -252,6 +252,11 @@ pushed.length = 0; r = await api('POST', '/v1/coach/clients/' + M2.userId + '/no
 await until(() => pushed.length >= 1); assert.equal(pushed[0].s.endpoint, EP('c1')); assert.equal(pushed[0].p.k, 'note'); assert.match(pushed[0].p.body, /Комментарий к тренировке: Отлично/); ok('клиент получил push о комментарии тренера');
 pushed.length = 0; r = await api('POST', '/v1/coach/clients/' + M2.userId + '/programs', T.token, { title: 'Сила 4 недели', program: { kind: 'prog', name: 'Сила 4 недели', data: { workouts: [] } } }); assert.equal(r.s, 200);
 await until(() => pushed.length >= 1); assert.equal(pushed[0].s.endpoint, EP('c1')); assert.equal(pushed[0].p.k, 'program'); assert.match(pushed[0].p.body, /Сила 4 недели/); ok('клиент получил push о новой программе');
+pushed.length = 0; r = await api('POST', '/v1/coach/clients/' + M2.userId + '/programs', T.token, { title: 'Сила 4 недели', key: 'prog:abc', program: { kind: 'prog', name: 'Сила 4 недели', data: { workouts: [] } } }); assert.equal(r.s, 200);
+await until(() => pushed.length >= 1); assert.match(pushed[0].p.body, /Новая программа/);
+pushed.length = 0; r = await api('POST', '/v1/coach/clients/' + M2.userId + '/programs', T.token, { title: 'Сила 4 недели', key: 'prog:abc', program: { kind: 'prog', name: 'Сила 4 недели', data: { workouts: [] } } }); assert.equal(r.s, 200);
+await until(() => pushed.length >= 1); assert.match(pushed[0].p.body, /Обновление программы/);
+r = await api('POST', '/v1/sync', M2.token, { since: 0 }); assert.equal(r.b.events.filter((e) => e.type === 'coach.program' && e.payload.key === 'prog:abc').length, 2); ok('повторная отправка программы с тем же ключом: клиент получает ключ в событии, push «Обновление программы»');
 pushed.length = 0; await api('POST', '/v1/coach/clients/' + M2.userId + '/norm', T.token, { adj: -50 }); await wait(80); assert.equal(pushed.length, 0); ok('корректировка нормы push не отправляет (только событие)');
 assert.equal((await api('POST', '/v1/push/subscribe', M2.token, { endpoint: 'https://fcm.googleapis.com/gone/dead', keys: KEYS })).s, 200);
 pushed.length = 0; await api('POST', '/v1/coach/clients/' + M2.userId + '/notes', T.token, { text: 'ещё' }); await until(() => pushed.length >= 1); await wait(80);

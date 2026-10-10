@@ -352,8 +352,10 @@ export function createApp({ db, secret, trustProxy = false, log = () => {}, sms 
       payload = { text, ref: typeof body.ref === 'string' ? body.ref.slice(0, 64) : undefined };
     } else {
       if (!body.program || typeof body.program !== 'object' || JSON.stringify(body.program).length > 100 * 1024) throw bad('bad_program');
-      payload = { program: body.program, title: String(body.title || body.program.name || '').slice(0, 120), text: typeof body.text === 'string' ? body.text.slice(0, 2000) : '' };
+      payload = { program: body.program, title: String(body.title || body.program.name || '').slice(0, 120), text: typeof body.text === 'string' ? body.text.slice(0, 2000) : '', key: typeof body.key === 'string' && body.key ? body.key.slice(0, 64) : undefined };
     }
+    let resend = false;
+    if (kind === 'program' && payload.key) resend = Number((await db.query("SELECT count(*) AS n FROM coach_items WHERE coach_id=$1 AND client_id=$2 AND kind='program' AND payload->>'key'=$3", [u.id, id, payload.key])).rows[0].n) > 0;
     const r = await db.query('INSERT INTO coach_items(coach_id,client_id,kind,payload) VALUES($1,$2,$3,$4::jsonb) RETURNING id', [u.id, id, kind, JSON.stringify(payload)]);
     await audit(u.id, 'coach.' + kind, id);
     const ev = await emitTx(id, 'coach.' + kind, { itemId: Number(r.rows[0].id), ...payload });
@@ -361,7 +363,7 @@ export function createApp({ db, secret, trustProxy = false, log = () => {}, sms 
     const snip = (x) => { x = String(x || '').replace(/\s+/g, ' ').trim(); return x.length > 110 ? x.slice(0, 109) + '…' : x; };
     notify(id, kind === 'note'
       ? { k: 'note', title: cn, body: (payload.ref ? 'Комментарий к тренировке: ' : '') + snip(payload.text), tag: 'c-' + u.id, url: './?push=note' }
-      : { k: 'program', title: cn, body: 'Новая программа: «' + snip(payload.title) + '»', tag: 'c-' + u.id, url: './?push=program' }).catch(() => {});
+      : { k: 'program', title: cn, body: (resend ? 'Обновление программы: «' : 'Новая программа: «') + snip(payload.title) + '»', tag: 'c-' + u.id, url: './?push=program' }).catch(() => {});
     return { ok: true, itemId: Number(r.rows[0].id), eventId: ev.id };
   });
 
