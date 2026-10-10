@@ -1,0 +1,7 @@
+.git
+**/node_modules
+fonts
+data
+icons
+lib
+*.html

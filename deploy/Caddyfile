@@ -1,0 +1,27 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# служебные папки репозитория наружу не отдаём
+	@hidden path /server/* /deploy/* /.git/* /.github/*
+	respond @hidden 404
+
+	# API и сокет
+	@api path /v1/* /health
+	handle @api {
+		reverse_proxy api:8787
+	}
+
+	# приложение (PWA)
+	handle {
+		root * /srv/app
+		header /sw.js Cache-Control "no-cache"
+		header /index.html Cache-Control "no-cache"
+		header /manifest.webmanifest Cache-Control "no-cache"
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy no-referrer
+			Strict-Transport-Security "max-age=31536000"
+		}
+		file_server
+	}
+}

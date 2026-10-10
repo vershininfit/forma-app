@@ -1,0 +1,67 @@
+# Forma: одна команда поднимает базу, API, сайт с HTTPS и ежедневные копии базы.
+# Запуск и обновление: bash update.sh
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forma
+      POSTGRES_USER: forma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forma -d forma"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  api:
+    build:
+      context: ./repo
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://forma:${POSTGRES_PASSWORD}@db:5432/forma
+      SECRET: ${SECRET}
+      VAPID_PUBLIC: ${VAPID_PUBLIC}
+      VAPID_PRIVATE: ${VAPID_PRIVATE}
+      VAPID_SUBJECT: mailto:${ADMIN_EMAIL}
+      ALLOWED_ORIGINS: https://${DOMAIN}
+      TRUST_PROXY: "1"
+
+  web:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./repo/deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./repo:/srv/app:ro
+      - caddydata:/data
+      - caddyconfig:/config
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./repo/deploy/backup.sh:/backup.sh:ro
+    entrypoint: ["sh", "/backup.sh"]
+
+volumes:
+  dbdata:
+  caddydata:
+  caddyconfig:
