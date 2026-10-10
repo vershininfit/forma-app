@@ -1,5 +1,5 @@
 // Forma service worker: HTML всегда с сети (правки приходят сразу), оффлайн — из кэша.
-const V = "20261010-141108";
+const V = "20261010-150828";
 const C = "forma-" + V;
 const PRE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon-180.png", "./fonts/fonts.css", "./lib/zxing.min.js", "./data/base_products.json", "./data/ru_products.json", "./fonts/onest-cyrillic-wght-normal.woff2", "./fonts/onest-latin-wght-normal.woff2"];
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(PRE)).catch(() => {})); });
@@ -14,4 +14,25 @@ self.addEventListener("fetch", e => {
   } else {
     e.respondWith(caches.match(r).then(m => m || fetch(r).then(res => { const cp = res.clone(); caches.open(C).then(c => c.put(r, cp)); return res; })));
   }
+});
+
+/* Push: уведомление всегда показываем (iOS требует). Нажатие открывает приложение на нужном экране. */
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: "Forma", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(String(d.title || "Forma").slice(0, 80), {
+    body: String(d.body || "").slice(0, 200), tag: d.tag || undefined, renotify: !!d.tag,
+    icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", data: d
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const d = e.notification.data || {};
+  const url = new URL(d.url || "./", self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const c of list) {
+      if (c.url.indexOf(self.registration.scope) === 0) { c.postMessage({ t: "push-open", d }); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  }));
 });
