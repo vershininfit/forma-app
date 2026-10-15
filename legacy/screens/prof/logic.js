@@ -562,7 +562,7 @@ W.swapPane=swapPane;W.swapPanes=swapPanes;W.initSeg=initSeg;
 (function(){
 "use strict";
 window.PAGE="prof";
-var GOALS=[["stroy","Стройность и тонус"],["relief","Рельеф и меньше жира"],["force","Сила и выносливость"],["start","С нуля или после перерыва"],["recover","Восстановление"],["reg","Регулярность и здоровье"]];
+var GOALS=[["stroy","Подтянуть тело и снизить процент жира"],["force","Стать сильнее и выносливее"],["reg","Мобильность, осанка и снятие напряжения"],["recover","Вернуться после перерыва, родов или травм"],["start","Начать заниматься и не бросить"]];
 var EQS=[["body","Свой вес"],["trx","TRX"],["dumbbell","Гантели"],["kettlebell","Гири"],["barbell","Штанга"],["machine","Тренажёры"],["cable","Кроссовер"],["band","Резинки"],["other","Коврик"]];
 var CAUS=["Колени","Спина","Плечи","Шея","Беременность или после родов","Сердце или давление","Другое"];
 var DAYS=["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
@@ -574,7 +574,7 @@ function setP(o,silent){var p=P();for(var k in o)p[k]=o[k];FS.set("profile",p)}
 function ageOf(b){if(!b)return null;var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(b);if(!m)return null;var t=new Date(),a=t.getFullYear()-(+m[1]);if(t.getMonth()+1<+m[2]||(t.getMonth()+1===+m[2]&&t.getDate()<+m[3]))a--;return a>=0&&a<130?a:null}
 function nf(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,"\u2009")}
 function num(v){return CALC.num(v)}
-function goalName(k){for(var i=0;i<GOALS.length;i++)if(GOALS[i][0]===k)return GOALS[i][1];return ""}
+function goalName(k){if(k==="relief")k="stroy";for(var i=0;i<GOALS.length;i++)if(GOALS[i][0]===k)return GOALS[i][1];return ""}
 function lastW(){var w=FS.get("wt")||[];return w.length?w[w.length-1].v:null}
 function wtSet(v){v=Math.round(v*10)/10;var w=(FS.get("wt")||[]).filter(function(x){return x.d!==TODAY_ISO});w.push({d:TODAY_ISO,v:v});w.sort(function(a,b){return a.d<b.d?-1:1});FS.set("wt",w)}
 /* ---------- сегмент ---------- */
@@ -707,7 +707,7 @@ function renderMe(){var p=P(),b=$("#meBody"),a=ageOf(p.birth);
  [H,W].forEach(function(inp){inp.onkeydown=function(e){if(e.key==="Enter")inp.blur()}});
  $$(".p-stp button",b).forEach(function(bt){bt.onclick=function(){var inp=bt.parentNode.querySelector("input"),d=+bt.dataset.d,cur=num(inp.value);if(!isFinite(cur))cur=inp===H?168:62;(inp===H?saveH:saveW)(cur+d);pulseAt(bt,"rgba(23,23,26,.35)",5)}});
  mkSeg($("#mLvl"),[["1","Новичок"],["2","Средний"],["3","Продвинутый"]],String(p.lvl||1),function(v){setP({lvl:+v})});
- chips($("#mGoal"),GOALS,function(k){return P().goal===k},false,function(k){setP({goal:P().goal===k?null:k});renderSum()});
+ chips($("#mGoal"),GOALS,function(k){return (P().goal==="relief"?"stroy":P().goal)===k},false,function(k){setP({goal:P().goal===k?null:k});renderSum()});
  mkSeg($("#mWhere"),[["gym","Зал"],["home","Дома"],["both","Везде"]],p.where||"home",function(v){setP({where:v})});
  var eq=p.eq||[];chips($("#mEq"),EQS,function(k){return (P().eq||[]).indexOf(k)>=0},true,function(k){var e=(P().eq||[]).slice(),i=e.indexOf(k);if(i>=0){if(k==="body"&&e.length===1)return;e.splice(i,1)}else e.push(k);if(e.indexOf("body")<0)e.push("body");setP({eq:e})});
  rxSum();$("#mRx").onclick=function(){buzz(6);drawRx();openSheet("shRx")}}
