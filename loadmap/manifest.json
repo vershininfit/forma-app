@@ -1,0 +1,123 @@
+{
+ "size": [
+  1024,
+  1536
+ ],
+ "base": "base.png",
+ "groups": {
+  "GL": {
+   "name_ru": "Ягодицы",
+   "files": {
+    "high": "gl_high.png",
+    "mid": "gl_mid.png",
+    "low": "gl_low.png",
+    "gold": "gl_gold.png"
+   }
+  },
+  "QD": {
+   "name_ru": "Передняя поверхность бедра",
+   "files": {
+    "high": "qd_high.png",
+    "mid": "qd_mid.png",
+    "low": "qd_low.png",
+    "gold": "qd_gold.png"
+   }
+  },
+  "HM": {
+   "name_ru": "Задняя поверхность бедра",
+   "files": {
+    "high": "hm_high.png",
+    "mid": "hm_mid.png",
+    "low": "hm_low.png",
+    "gold": "hm_gold.png"
+   }
+  },
+  "CF": {
+   "name_ru": "Мышцы голени",
+   "files": {
+    "high": "cf_high.png",
+    "mid": "cf_mid.png",
+    "low": "cf_low.png",
+    "gold": "cf_gold.png"
+   }
+  },
+  "BI": {
+   "name_ru": "Бицепс",
+   "files": {
+    "high": "bi_high.png",
+    "mid": "bi_mid.png",
+    "low": "bi_low.png",
+    "gold": "bi_gold.png"
+   }
+  },
+  "TR": {
+   "name_ru": "Трицепс",
+   "files": {
+    "high": "tr_high.png",
+    "mid": "tr_mid.png",
+    "low": "tr_low.png",
+    "gold": "tr_gold.png"
+   }
+  },
+  "FA": {
+   "name_ru": "Предплечья",
+   "files": {
+    "high": "fa_high.png",
+    "mid": "fa_mid.png",
+    "low": "fa_low.png",
+    "gold": "fa_gold.png"
+   }
+  },
+  "SH": {
+   "name_ru": "Плечи",
+   "files": {
+    "high": "sh_high.png",
+    "mid": "sh_mid.png",
+    "low": "sh_low.png",
+    "gold": "sh_gold.png"
+   }
+  },
+  "CH": {
+   "name_ru": "Мышцы груди",
+   "files": {
+    "high": "ch_high.png",
+    "mid": "ch_mid.png",
+    "low": "ch_low.png",
+    "gold": "ch_gold.png"
+   }
+  },
+  "BK": {
+   "name_ru": "Мышцы спины",
+   "files": {
+    "high": "bk_high.png",
+    "mid": "bk_mid.png",
+    "low": "bk_low.png",
+    "gold": "bk_gold.png"
+   }
+  },
+  "CR": {
+   "name_ru": "Мышцы кора",
+   "files": {
+    "high": "cr_high.png",
+    "mid": "cr_mid.png",
+    "low": "cr_low.png",
+    "gold": "cr_gold.png"
+   }
+  }
+ },
+ "rules": {
+  "max_groups": 3,
+  "rank_to_level": [
+   "high",
+   "mid",
+   "low"
+  ],
+  "min_share": 0.05,
+  "full_body": {
+   "top3_share_max": 0.6,
+   "min_groups_with_share": 5,
+   "group_share": 0.08,
+   "level": "gold"
+  }
+ }
+}
