@@ -21,6 +21,7 @@ html,body{margin:0;height:100%;background:#fff;overflow:hidden;overscroll-behavi
 #shsh .shr2{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 #shsh .shr2 button{display:flex;flex-direction:column;align-items:center;gap:7px;border:0;background:none;font:400 12px Onest,-apple-system,sans-serif;color:#17171A;padding:0;cursor:pointer}
 #shsh .shr2 span{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:#E0572F;background:#fff;box-shadow:0 0 0 1.5px rgba(224,87,47,.35)}
+#shsh .shr2 button[data-k=ig] span{box-shadow:0 0 0 1.5px rgba(214,41,118,.28)}#shsh .shr2 button[data-k=vk] span{color:#0077FF;box-shadow:0 0 0 1.5px rgba(0,119,255,.3)}#shsh .shr2 button[data-k=tg] span{color:#229ED9;box-shadow:0 0 0 1.5px rgba(34,158,217,.32)}
 #shsh .shr2 button:active span{transform:scale(.92);background:rgba(224,87,47,.08)}
 #shsh .shr2 svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (prefers-reduced-motion:reduce){#stage iframe,#stage iframe.on{transition:opacity .01s cubic-bezier(.32,.72,0,1),visibility 0s;transform:none;filter:none}}
@@ -549,7 +550,7 @@ function shareOut(m,mode){try{var blob;if(m.dataUrl){var p=String(m.dataUrl).spl
  var dl=function(){var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=file.name;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(url)},4000)};
  if(mode==="save")dl();else if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:m.title||""}).catch(function(e){if(!e||e.name!=="AbortError")dl()})}else dl()}catch(e){}}
 
-var SHI={ig:'<svg viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.2" cy="6.8" r=".9" fill="currentColor" stroke="none"/></svg>',
+var SHI={ig:'<svg viewBox="0 0 24 24"><defs><linearGradient id="shig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset=".3" stop-color="#FA7E1E"/><stop offset=".55" stop-color="#D62976"/><stop offset=".8" stop-color="#962FBF"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect stroke="url(#shig)" x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle stroke="url(#shig)" cx="12" cy="12" r="4.1"/><circle cx="17.2" cy="6.8" r=".9" fill="#D62976" stroke="none"/></svg>',
  vk:'<svg viewBox="0 0 24 24"><path d="M3.5 7.5h2.6c.3 3.4 2 5.3 3.4 5.6V7.5h2.4v3.4c1.3-.2 2.7-1.8 3.2-3.4h2.4c-.4 2.1-2 3.7-3 4.4 1.1.6 3 2 3.6 4.6h-2.6c-.5-1.7-1.9-3-3.6-3.2v3.2h-.4C6.700 17.500 3.700 13.700 3.500 7.500Z" fill="currentColor" stroke="none"/></svg>',
  tg:'<svg viewBox="0 0 24 24"><path d="M20.800 4.200 3.400 10.900c-.9.400-.9 1 0 1.300l4.400 1.400 1.700 5.300c.2.600.5.700 1 .3l2.500-2.100 4.500 3.300c.8.500 1.400.2 1.600-.8L21.900 5.400c.3-1.200-.4-1.700-1.100-1.200ZM9 13.400l8.600-5.400c.4-.3.800-.1.500.2l-7 6.400-.3 3.400L9 13.400Z" fill="currentColor" stroke="none"/></svg>',
  sv:'<svg viewBox="0 0 24 24"><path d="M12 3.500v11.500M7.500 10.800 12 15.300l4.500-4.500M4.500 16v2.200A1.800 1.800 0 0 0 6.300 20h11.400a1.800 1.800 0 0 0 1.800-1.800V16"/></svg>'};
