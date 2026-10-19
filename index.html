@@ -23,6 +23,7 @@ html,body{margin:0;height:100%;background:#fff;overflow:hidden;overscroll-behavi
 #shsh .shr2 span{width:56px;height:56px;display:grid;place-items:center;color:#17171A}
 #shsh .shr2 button[data-k=vk] span{color:#0077FF}#shsh .shr2 button[data-k=tg] span{color:#229ED9}
 #shsh .shr2 button:active span{transform:scale(.9)}
+#shsh .sho{display:flex;align-items:center;justify-content:center;height:52px;border-radius:99px;background:#E0572F;color:#fff;text-decoration:none;font:400 16px Onest,-apple-system,sans-serif}
 #shsh .shn{margin:14px 6px 0;font:400 12px/1.4 Onest,-apple-system,sans-serif;color:rgba(23,23,26,.5)}
 #shsh .shr2 svg{width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (prefers-reduced-motion:reduce){#stage iframe,#stage iframe.on{transition:opacity .01s cubic-bezier(.32,.72,0,1),visibility 0s;transform:none;filter:none}}
@@ -561,14 +562,22 @@ function shareApp(m,url){var blob=null;try{var p=String(m.dataUrl).split(","),bi
  var left=false,ov=function(){if(document.hidden)left=true};document.addEventListener("visibilitychange",ov);addEventListener("pagehide",ov);
  try{location.href=url}catch(e){}
  setTimeout(function(){document.removeEventListener("visibilitychange",ov);if(!left)shareOut(m)},1500)}
+function shareFileP(m){return new Promise(function(res,rej){var p=String(m.dataUrl).split(","),bin=atob(p[1]),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+ var blob=new Blob([u],{type:"image/png"}),file=new File([blob],m.name||"forma.png",{type:"image/png"});
+ if(navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:m.title||""}).then(res,function(e){if(e&&e.name==="AbortError")rej(e);else{shareOut(m,"save");res()}});
+ else{shareOut(m,"save");res()}})}
 function shareSheet(m){var o=document.getElementById("shsh");if(o)o.remove();
  var d=document.createElement("div");d.id="shsh";
  d.innerHTML='<div class="shbk"></div><div class="shp"><div class="shg"></div><h4>Поделиться</h4><div class="shi"><img alt="" src="'+m.dataUrl+'"></div><div class="shr2">'+
-  [["ig","Instagram"],["vk","ВКонтакте"],["tg","Telegram"],["sv","Сохранить"]].map(function(a){return '<button data-k="'+a[0]+'"><span>'+SHI[a[0]]+'</span>'+a[1]+'</button>'}).join("")+'</div><p class="shn">Картинка копируется и открывается приложение: вставьте её в сторис. Если приложения нет, откроется системное окно.</p></div>';
+  [["ig","Instagram"],["vk","ВКонтакте"],["tg","Telegram"],["sv","Сохранить"]].map(function(a){return '<button data-k="'+a[0]+'"><span>'+SHI[a[0]]+'</span>'+a[1]+'</button>'}).join("")+'</div><p class="shn">Нажмите на приложение: откроется окно iPhone, выберите в нём «Сохранить изображение», затем откройте приложение и добавьте картинку в сторис из галереи.</p></div>';
  document.body.appendChild(d);requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add("on")})});
  var cl=function(){d.classList.remove("on");setTimeout(function(){d.remove()},320)};
  d.querySelector(".shbk").onclick=cl;
- d.querySelectorAll("button").forEach(function(b){b.onclick=function(){var k=b.getAttribute("data-k");if(k==="sv")shareOut(m,"save");else shareApp(m,SHU[k]);cl()}})}
+ d.querySelectorAll("button").forEach(function(b){b.onclick=function(){var k=b.getAttribute("data-k");if(k==="sv"){shareOut(m,"save");cl();return}
+  shareFileP(m).then(function(){var nm={ig:"Instagram",vk:"ВКонтакте",tg:"Telegram"}[k],bx=d.querySelector(".shp");
+   d.querySelector(".shr2").outerHTML='<a class="sho" href="'+SHU[k]+'">Открыть '+nm+'</a>';
+   var n=d.querySelector(".shn");n.textContent="Если сохранили картинку в «Фото», добавьте её в сторис из галереи.";
+   d.querySelector(".sho").addEventListener("click",function(){setTimeout(cl,600)})}).catch(function(){})}})}
 function show(w,dirOpt){if(!F[w]){return}load(w);var prev=cur;cur=w;var ip=TABO.indexOf(prev),iw=TABO.indexOf(w),dir=dirOpt||((ip>=0&&iw>=0&&ip!==iw)?(iw>ip?1:-1):0);
  if(prev!==w){for(var k in F)if(k===w||k===prev)F[k].classList.add("tr");clearTimeout(trT);trT=setTimeout(function(){for(var k in F)F[k].classList.remove("tr")},900);
   if(dir&&F[prev]){var o=F[prev],nw=F[w];nw.style.transition="none";nw.style.transform="translateX("+(dir*28)+"px) scale(.985)";void nw.offsetWidth;nw.style.transition="";nw.style.transform="";o.style.transform="translateX("+(-dir*28)+"px) scale(.985)";setTimeout(function(){o.style.transform=""},780)}}
