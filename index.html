@@ -569,11 +569,12 @@ function shareFileP(m){return new Promise(function(res,rej){var p=String(m.dataU
 function shareSheet(m){var o=document.getElementById("shsh");if(o)o.remove();
  var d=document.createElement("div");d.id="shsh";
  d.innerHTML='<div class="shbk"></div><div class="shp"><div class="shg"></div><h4>Поделиться</h4><div class="shi"><img alt="" src="'+m.dataUrl+'"></div><div class="shr2">'+
-  [["ig","Instagram"],["vk","ВКонтакте"],["tg","Telegram"],["sv","Сохранить"]].map(function(a){return '<button data-k="'+a[0]+'"><span>'+SHI[a[0]]+'</span>'+a[1]+'</button>'}).join("")+'</div><p class="shn">Нажмите на приложение: откроется окно iPhone, выберите в нём «Сохранить изображение», затем откройте приложение и добавьте картинку в сторис из галереи.</p></div>';
+  [["ig","Instagram"],["vk","ВКонтакте"],["tg","Telegram"],["sv","Сохранить"]].map(function(a){return '<button data-k="'+a[0]+'"><span>'+SHI[a[0]]+'</span>'+a[1]+'</button>'}).join("")+'</div><p class="shn">Instagram открывается сразу в сторис, картинка уже скопирована: вставьте её стикером. Либо сначала нажмите «Сохранить» и добавьте её из галереи.</p></div>';
  document.body.appendChild(d);requestAnimationFrame(function(){requestAnimationFrame(function(){d.classList.add("on")})});
  var cl=function(){d.classList.remove("on");setTimeout(function(){d.remove()},320)};
  d.querySelector(".shbk").onclick=cl;
  d.querySelectorAll("button").forEach(function(b){b.onclick=function(){var k=b.getAttribute("data-k");if(k==="sv"){shareOut(m,"save");cl();return}
+  if(k==="ig"){shareApp(m,SHU.ig);cl();return}
   shareFileP(m).then(function(){var nm={ig:"Instagram",vk:"ВКонтакте",tg:"Telegram"}[k],bx=d.querySelector(".shp");
    d.querySelector(".shr2").outerHTML='<a class="sho" href="'+SHU[k]+'">Открыть '+nm+'</a>';
    var n=d.querySelector(".shn");n.textContent="Если сохранили картинку в «Фото», добавьте её в сторис из галереи.";
