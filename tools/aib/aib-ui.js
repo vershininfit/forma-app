@@ -21,10 +21,10 @@ function aibOpen(withMic) {
 /* --- экран ввода --- */
 function aibInput(text) {
   aib.st = null;
-  $("#aibB").innerHTML = '<h3>Собрать тренировку</h3><div class="sub">Вставьте из заметок или надиктуйте упражнения, подходы, вес и отдых</div>' +
+  $("#aibB").innerHTML = '<h3>Собрать тренировку</h3><div class="sub">Вставьте из заметок, надиктуйте или загрузите скриншот программы</div>' +
     '<div class="aib-tw"><textarea id="aibT" class="aib-t" rows="6" autocapitalize="sentences" spellcheck="false" placeholder="Присед 4×8 60 кг, отдых 2 мин&#10;Румынка 3×10 40&#10;Планка 3×45 с"></textarea><div class="aib-live" id="aibL"></div></div>' +
     '<div class="aib-hint" id="aibH"></div>' +
-    '<div class="aib-row"><button class="aib-mic" id="aibMic" type="button" aria-label="Диктовать">' + ic("mic") + '</button><button class="cta go" id="aibGo" type="button" disabled>Собрать</button></div>';
+    '<div class="aib-row"><button class="aib-mic" id="aibMic" type="button" aria-label="Диктовать">' + ic("mic") + '</button><button class="aib-mic" id="aibImg" type="button" aria-label="Со скриншота">' + ic("aibimg") + '</button><button class="cta go" id="aibGo" type="button" disabled>Собрать</button></div>';
   var t = $("#aibT"); t.value = text || ""; aibGoSync();
 }
 function aibGoSync() { var t = $("#aibT"), g = $("#aibGo"); if (t && g) g.disabled = !t.value.trim(); }
@@ -79,7 +79,10 @@ function aibRun() {
   var res; try { res = AIB.parse(text, aibCtx()); } catch (e) { aibHint("Не получилось разобрать текст. Проверьте запись и попробуйте ещё раз.", true); return; }
   var items = []; res.days.forEach(function (d, di) { d.items.forEach(function (it) { it.day = di; it.picked = false; it.alts = []; items.push(it); }); });
   if (!items.length) { aibHint("Не нашёл упражнений. Пример: «Присед 4×8 60 кг, отдых 2 мин».", true); return; }
-  aib.st = { text: text, res: res, items: items };
+  var fromImg = aib.src === "img"; aib.src = "";
+  if (fromImg) items.forEach(function (it) { if (it.conf === "none" && !it.sets && !it.reps && !it.sec && !it.kg) it.skip = true; });
+  if (fromImg && !items.some(function (it) { return !it.skip; })) { aibHint("На скриншоте не нашёл упражнений. Текст со скриншота выше: поправьте его и нажмите «Собрать».", true); return; }
+  aib.st = { text: text, res: res, items: items, img: fromImg };
   items.forEach(aibAltsOf);
   buzz([8, 30, 8]); aibDraft();
 }
@@ -159,9 +162,16 @@ function aibBindSheet(sh) {
       if (it.found.length) box.insertAdjacentHTML("afterend", '<div class="aib-ch">' + it.found.map(function (id) { return '<button class="aib-chip" data-a="pick" data-id="' + esc(id) + '" type="button">' + esc(exOf(id).n) + '</button>'; }).join("") + '</div>');
     }, 160); }
   });
+  sh.addEventListener("paste", function (e) {
+    var fs = [], it = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < it.length; i++) if (it[i].kind === "file" && /^image\//.test(it[i].type)) { var f = it[i].getAsFile(); if (f) fs.push(f); }
+    if (fs.length) { e.preventDefault(); aibImgRun(fs); }
+  });
   sh.addEventListener("click", function (e) {
     var b = e.target.closest("button"); if (!b) return;
     if (b.id === "aibMic") { if (aib.recOn) aibMicStop(false); else aibMicStart(); return; }
+    if (b.id === "aibImg") { if (aib.recOn) aibMicStop(false); buzz(6); aibImgPick(); return; }
+    if (b.id === "aibImgX") { aib.ocrTok++; aibInput(aibSet().aib || ""); return; }
     if (b.id === "aibGo") { if (aib.recOn) { aibMicStop(true); return; } aibRun(); return; }
     if (b.id === "aibBk") { aibInput(aib.st ? aib.st.text : aibSet().aib || ""); return; }
     if (b.id === "aibNo") { closeSheet("aibSheet"); return; }
@@ -240,6 +250,102 @@ function aibAltSwap(x, id) {
 /* вход в конструкторе */
 cs.addEventListener("click", function (e) {
   if (e.target.closest("#aibM")) { e.stopPropagation(); buzz(6); aibOpen(true); return; }
+  if (e.target.closest("#aibI")) { e.stopPropagation(); buzz(6); aibOpen(false); aibImgPick(); return; }
   if (e.target.closest("#aibE")) { buzz(6); aibOpen(false); }
 });
 cs.addEventListener("keydown", function (e) { if (e.target.id === "aibE" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); aibOpen(false); } });
+
+/* ---------- скриншот программы → текст (распознавание на устройстве, офлайн после первой загрузки) ---------- */
+aib.ocrTok = 0; aib.OW = null; aib.OP = null; aib.ocrProg = null; aib.ocrIdle = 0;
+var aibF = document.createElement("input"); aibF.type = "file"; aibF.accept = "image/*"; aibF.multiple = true; aibF.setAttribute("aria-hidden", "true"); aibF.tabIndex = -1;
+aibF.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px"; document.body.appendChild(aibF);
+aibF.onchange = function () { var fs = [].slice.call(aibF.files || []); aibF.value = ""; if (fs.length) aibImgRun(fs); };
+function aibImgPick() { aibF.value = ""; aibF.click(); }
+function aibURL(p) { try { return new URL(p, document.baseURI).href; } catch (e) { return p; } }
+function aibOcrLib() { return new Promise(function (res, rej) { if (window.Tesseract) return res(); var s = document.createElement("script"); s.src = aibURL("lib/ocr/tesseract.min.js"); s.onload = function () { window.Tesseract ? res() : rej(new Error("lib")); }; s.onerror = function () { rej(new Error("lib")); }; document.head.appendChild(s); }); }
+function aibOcrWorker() {
+  clearTimeout(aib.ocrIdle);
+  if (aib.OP) return aib.OP;
+  aib.OP = aibOcrLib().then(function () { return Tesseract.createWorker(["rus", "eng"], 1, { workerPath: aibURL("lib/ocr/worker.min.js"), corePath: aibURL("lib/ocr"), langPath: aibURL("lib/ocr/lang"), gzip: true, logger: function (m) { if (aib.ocrProg) aib.ocrProg(m); } }); })
+    .then(function (w) { aib.OW = w; return w; }).catch(function (e) { aib.OP = null; throw e; });
+  return aib.OP;
+}
+function aibOcrRelease() { clearTimeout(aib.ocrIdle); aib.ocrIdle = setTimeout(function () { var w = aib.OW; aib.OW = null; aib.OP = null; if (w) { try { w.terminate(); } catch (e) {} } }, 90000); }
+function aibImgLoad(file) {
+  return (window.createImageBitmap ? createImageBitmap(file, { imageOrientation: "from-image" }) : Promise.reject()).catch(function () {
+    return new Promise(function (res, rej) { var im = new Image(); im.onload = function () { res(im); }; im.onerror = rej; im.src = URL.createObjectURL(file); });
+  });
+}
+function aibImgPrep(file) {
+  return aibImgLoad(file).then(function (im) {
+    var w = im.width || im.naturalWidth, h = im.height || im.naturalHeight, sc = w > 1600 ? 1600 / w : (w < 900 ? Math.min(2, 1100 / w) : 1);
+    if (w * h * sc * sc > 12e6) sc = Math.sqrt(12e6 / (w * h));
+    var cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(w * sc)); cv.height = Math.max(1, Math.round(h * sc));
+    var x = cv.getContext("2d", { willReadFrequently: true }); x.drawImage(im, 0, 0, cv.width, cv.height);
+    var th = document.createElement("canvas"), tk = Math.min(1, 160 / cv.width); th.width = Math.round(cv.width * tk); th.height = Math.round(cv.height * tk); th.getContext("2d").drawImage(cv, 0, 0, th.width, th.height);
+    var thumb = th.toDataURL("image/jpeg", .7);
+    var d = x.getImageData(0, 0, cv.width, cv.height), a = d.data, hist = new Uint32Array(256), n = cv.width * cv.height, i, sum = 0;
+    for (i = 0; i < a.length; i += 4) { var g = (a[i] * 299 + a[i + 1] * 587 + a[i + 2] * 114) / 1000 | 0; a[i] = g; hist[g]++; sum += g; }
+    var inv = sum / n < 110;                                  /* тёмная тема в чужом приложении: делаем светлый фон */
+    var lo = 0, hi = 255, c = 0; while (lo < 255 && (c += hist[lo]) < n * .02) lo++; c = 0; while (hi > 0 && (c += hist[hi]) < n * .02) hi--; var k = hi > lo + 20 ? 255 / (hi - lo) : 1;
+    for (i = 0; i < a.length; i += 4) { var v = Math.max(0, Math.min(255, (a[i] - lo) * k)) | 0; if (inv) v = 255 - v; a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255; }
+    x.putImageData(d, 0, 0); return { cv: cv, thumb: thumb };
+  });
+}
+function aibOcrLines(d) {
+  var out = [];
+  ((d && d.blocks) || []).forEach(function (b) { (b.paragraphs || []).forEach(function (p) { (p.lines || []).forEach(function (l) { var bb = l.bbox || {}; out.push({ text: String(l.text || "").trim(), conf: l.confidence, x0: bb.x0, y0: bb.y0, x1: bb.x1, y1: bb.y1 }); }); }); });
+  if (!out.length && d && d.text) String(d.text).split("\n").forEach(function (t, i) { out.push({ text: t, x0: 0, x1: 1, y0: i * 20, y1: i * 20 + 18 }); });
+  return out;
+}
+function aibOcrRead(cv, psm) {
+  return aibOcrWorker().then(function (w) { return w.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: "1" }).then(function () { return w.recognize(cv, {}, { blocks: true, text: true }); }); })
+    .then(function (r) { return AIB.ocrText(aibOcrLines(r.data || r)); });
+}
+function aibImgBusy(thumbs, n) {
+  $("#aibB").innerHTML = '<h3>Читаю скриншот' + (n > 1 ? "ы" : "") + '</h3><div class="sub">Распознаю на телефоне, картинки никуда не отправляются</div>' +
+    '<div class="aib-ib"><div class="aib-th" id="aibTh">' + thumbs.map(function (t) { return t ? '<img alt="" src="' + t + '">' : '<i></i>'; }).join("") + '</div>' +
+    '<div class="aib-pb"><i id="aibPb"></i></div><p id="aibPt">Готовлю картинку…</p></div>' +
+    '<div class="aib-row"><button class="cta l" id="aibImgX" type="button">Отменить</button></div>';
+}
+function aibImgP(f, t) { var b = $("#aibPb"), x = $("#aibPt"); if (b) b.style.width = Math.max(4, Math.min(100, Math.round(f * 100))) + "%"; if (x && t) x.textContent = t; }
+function aibImgRun(files) {
+  files = files.filter(function (f) { return f && /^image\//.test(f.type || "image/"); }).slice(0, 6);
+  if (!files.length) return;
+  if (!$("#aibSheet.on")) { aibSheet(); openSheet("aibSheet"); }
+  var tok = ++aib.ocrTok, n = files.length, thumbs = files.map(function () { return ""; }), texts = [], idx = 0;
+  aibImgBusy(thumbs, n);
+  var stage = function (f) { return idx / n + f / n; };
+  aib.ocrProg = function (m) {
+    if (tok !== aib.ocrTok) return; var s = String(m.status || ""), p = +m.progress || 0;
+    if (/loading|initializ/.test(s)) aibImgP(stage(.05 + p * .25), "Загружаю распознавание (первый раз дольше)…");
+    else if (/recogniz/.test(s)) aibImgP(stage(.3 + p * .65), n > 1 ? "Читаю текст: " + (idx + 1) + " из " + n + "…" : "Читаю текст…");
+  };
+  var fail = function (e) {
+    if (tok !== aib.ocrTok) return; aib.ocrProg = null; aibOcrRelease();
+    aibInput(texts.join("\n"));
+    aibHint(e && e.message === "lib" ? "Модуль распознавания не загрузился. Нужен интернет при первом запуске, дальше работает без сети." : "Не получилось прочитать скриншот. Попробуйте ещё раз или вставьте текст.", true);
+  };
+  var one = function () {
+    if (tok !== aib.ocrTok) return;
+    if (idx >= n) return done();
+    var f = files[idx];
+    return aibImgPrep(f).then(function (r) {
+      if (tok !== aib.ocrTok) return;
+      thumbs[idx] = r.thumb; var th = $("#aibTh"); if (th) th.children[idx].outerHTML = '<img alt="" src="' + r.thumb + '">';
+      return aibOcrRead(r.cv, "3").then(function (t) {
+        if (tok !== aib.ocrTok) return;
+        var ok = AIB.parse(t, aibCtx()).stats.items;
+        if (ok) return t;
+        return aibOcrRead(r.cv, "6").then(function (t2) { return AIB.parse(t2, aibCtx()).stats.items ? t2 : (t2.length > t.length ? t2 : t); });
+      }).then(function (t) { if (tok !== aib.ocrTok) return; texts.push(t || ""); idx++; return one(); });
+    });
+  };
+  var done = function () {
+    aib.ocrProg = null; aibOcrRelease(); aibImgP(1, "Собираю тренировку…");
+    var text = AIB.ocrJoin(texts).trim();
+    if (!text) { aibInput(aibSet().aib || ""); aibHint("На картинке не нашёл текста. Сделайте скриншот так, чтобы упражнения были крупно и целиком.", true); return; }
+    aibInput(text); aib.src = "img"; aibRun();
+  };
+  Promise.resolve().then(one).catch(fail);
+}

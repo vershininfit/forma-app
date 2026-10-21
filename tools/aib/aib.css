@@ -63,3 +63,13 @@
 .aib-lnk{font:400 13px var(--sans);color:var(--green-ink)}
 .aib-acts{display:flex;gap:10px}
 .aib-acts .cta.l{flex:0 0 34%}.aib-acts .cta.go{flex:1}
+.aibe .aibm+.aibm{margin-left:-4px}
+.aib-ib{display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0 4px}
+.aib-th{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.aib-th img,.aib-th i{display:block;width:72px;height:128px;object-fit:cover;object-position:top;border-radius:14px;box-shadow:0 0 0 1px var(--line),0 12px 24px -18px var(--gl-sh);background:#fff}
+.aib-th i{animation:aibsh 1.4s var(--glassease) infinite alternate}
+@keyframes aibsh{from{opacity:.5}to{opacity:1}}
+.aib-pb{width:72%;height:4px;border-radius:99px;background:rgba(23,23,26,.07);overflow:hidden}
+.aib-pb i{display:block;height:100%;width:4%;border-radius:99px;background:var(--green,#4FB874);transition:width .4s var(--glassease)}
+.aib-ib p{font-size:14px;color:var(--ink2);text-align:center;margin:0}
+@media (prefers-reduced-motion:reduce){.aib-th i{animation:none}}

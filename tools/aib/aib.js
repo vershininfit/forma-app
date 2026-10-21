@@ -73,9 +73,13 @@
     s = s.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, " ");
     s = s.replace(/пол\s?минуты/g, "30 сек").replace(/полминуты/g, "30 сек").replace(B(/\bпо минуте\b/g), "по 1 мин").replace(B(/\bминута\b/g), "1 мин").replace(B(/\bминуту\b/g), "1 мин");
     s = wordsToNum(s);
+    s = s.replace(/(\d+(?:[.,]\d+)?)\s*(?:lbs?|фунт\w*)(?![a-zа-я])/g, function (m, a) { return String(Math.round(+a.replace(",", ".") * 0.4536 * 2) / 2) + " кг"; });
+    s = s.replace(B(/\b(?:sets?)\b/g), "подх").replace(B(/\b(?:reps?|repetitions?)\b/g), "повт").replace(B(/\brest\b/g), "отдых")
+      .replace(B(/\b(?:secs?|seconds?)\b/g), "сек").replace(B(/\b(?:mins?|minutes?)\b/g), "мин");
     s = s.replace(/(\d)\s*[хx×*]\s*(?=\d)/g, "$1x").replace(/(\d+)\s+на\s+(\d+)(?!\s*(кг|сек|мин|\d))/g, "$1x$2");            // 4х8 4 x 8 4*8 → 4x8
     s = s.replace(/(\d+),(\d+)(?=\s*(кг|кило))/g, "$1.$2");     // 7,5 кг
     s = s.replace(/\d+(?:\s*,\s*\d+){2,}/g, function (m) { return m.replace(/\s*,\s*/g, "/"); }); // 12,10,8 → 12/10/8
+    s = s.replace(/(\d)\s*(?:kg|кг)(?=\s*[xх×*]|\d)/g, "$1 кг ");
     s = s.replace(B(/килограмм\w*|кило\b|kg\b/g), "кг");
     s = s.replace(B(/секунд\w*|сек\.?(?=\s|$|[,;.])/g), "сек").replace(B(/(\d)\s*(с|s)\b(?=\s*(?:$|[^а-яa-z\s]|отдых|подх|повт|по\s|на\s|x\d|\d))/g), "$1 сек").replace(/(\d)\s*"/g, "$1 сек");
     s = s.replace(B(/минут\w*|мин\.?(?=\s|$|[,;.])/g), "мин");
@@ -187,6 +191,23 @@
     [["trx сгибание ног", "trx бицепс бедра"], "trx сгибание бедра", ["275"]],
     [["trx y", "trx игрек", "trx y разведение", "trx y отведение"], "trx y отведение", ["262"]],
     [["trx разведение", "trx разводка"], "trx разведение рук", ["261"]],
+    [["bench press", "barbell bench press"], "barbell bench press", ["71", "110"]],
+    [["lateral raise", "lateral raises", "side raise"], "standing lateral raise", ["126", "36"]],
+    [["triceps pushdown", "tricep pushdown", "pushdown", "rope pushdown"], "cable triceps pushdown", ["38", "37"]],
+    [["back squat", "barbell squat", "squat"], "high-bar back squat", ["63", "143"]],
+    [["deadlift"], "conventional deadlift", ["80", "145"]],
+    [["lat pulldown", "pulldown"], "wide-grip lat pulldown", ["24", "25"]],
+    [["seated row", "cable row", "seated cable row"], "close-grip seated cable row", ["30", "33"]],
+    [["leg press"], "leg press", ["1", "2"]],
+    [["leg extension"], "seated leg extension", ["5"]],
+    [["leg curl", "lying leg curl"], "lying leg curl", ["7", "8"]],
+    [["bicep curl", "biceps curl", "dumbbell curl"], "standing dumbbell curl", ["131", "92"]],
+    [["hammer curl"], "hammer curl", ["132"]],
+    [["overhead press", "military press"], "standing barbell overhead press", ["76", "114"]],
+    [["shoulder press", "dumbbell shoulder press"], "seated dumbbell overhead press", ["113", "34"]],
+    [["pull up", "pull-up", "pullup"], "wide-grip pull-up", ["205", "51"]],
+    [["push up", "push-up", "pushup"], "standard push-up", ["191", "196"]],
+    [["lunge", "lunges"], "forward lunge", ["217", "147"]],
     [["шаги фермера", "прогулка фермера", "фермер"], "прогулка фермера", []]
   ];
 
@@ -266,7 +287,7 @@
       // канон + оставшиеся уточнения из исходной фразы
       var rest = s; sl[0].slice().sort(function (a, b) { return b.length - a.length; }).forEach(function (a) { rest = rest.replace(new RegExp(a.replace(/ /g, "[\\s-]+") + WCH + "{0,3}", "g"), " "); });
       q = sl[1] + " " + rest;
-      restT = toks(rest.replace(/trx/g, " ")).filter(function (t) { return !/^(ног|рук|тренаж|блок|гантел|штанг|гир|резин|петл|упражн|подх|повт|вес|пол|обычн|классич|прост|базов|kettlebell|dumbbell|barbell|cable|band)/.test(t.s); });
+      restT = toks(rest.replace(/trx/g, " ")).filter(function (t) { return !/^(ног|рук|тренаж|блок|гантел|штанг|гир|резин|петл|упражн|подх|повт|вес|пол|обычн|классич|прост|базов|сторон|kettlebell|dumbbell|barbell|cable|band)/.test(t.s); });
       qual = restT.length > 0;
       sl[2].forEach(function (id, i) { fam[id] = { d: i === 0, rk: (sl[2].length - i) / sl[2].length }; });
     }
@@ -294,7 +315,9 @@
     }
     var top = res.slice(0, 6).map(function (r) { return { id: String(r[1].id), score: Math.round(r[0] * 100) / 100 }; });
     var s1 = res[0] ? res[0][0] : 0, s2 = res[1] ? res[1][0] : 0, conf;
+    var exact = res[0] && learnKey(String(res[0][1].n).replace(/\([^)]*\)/g, " ")) === learnKey(s);
     if (aliasId != null && top[0] && top[0].score === 9) conf = "ok";
+    else if (exact) conf = "ok";
     else if (s1 < 0.5) conf = "none";
     else if (s1 >= 0.85 && s1 - s2 >= 0.06) conf = "ok";
     else conf = "check";
@@ -302,7 +325,7 @@
   }
 
   /* ---------- разбор строки ---------- */
-  var PARAMW = B(/^(подх|повт|раз|кг|сек|мин|отдых\w*|отд|пауза|паузой|темп\w*|вес|весом|весе|на|по|ногу|ноги|сторону|стороны|руку|руки|каждую|каждой|каждый|ногой|рукой|до|отказа|макс\w*|x|с|и|а|в|круг\w*|между|подходами|упражнени\w*|сначала|затем|потом|дальше|далее|после|этого|еще|ещё|также|делаем|делай|делать|сделать|рабочих|рабочим|рабоч\w*|разминочн\w*|по-?\d+|штук\w*|секунд|минут|ок|ну|так|вот|это|будет|номер|первое|второе|третье|следующее|пусть|давай|конце|начале|напоследок|завершение|завершении|финал|финале|самом|amrap)$/);
+  var PARAMW = B(/^(подх|повт|раз|кг|сек|мин|отдых\w*|отд|пауза|паузой|темп\w*|вес|весом|весе|на|по|ногу|ноги|сторону|стороны|руку|руки|каждую|каждой|каждый|ногой|рукой|до|отказа|макс\w*|x|с|и|а|в|круг\w*|между|подходами|упражнени\w*|сначала|затем|потом|дальше|далее|после|этого|еще|ещё|также|делаем|делай|делать|сделать|рабочих|рабочим|рабоч\w*|разминочн\w*|по-?\d+|штук\w*|секунд|минут|ок|ну|так|вот|это|будет|номер|первое|второе|третье|следующее|пусть|давай|weight|weights|вес\w*|previous|prev|предыдущ\w*|прошл\w*|warmup|warm|разминк\w*|kg|lbs|set|reps|конце|начале|напоследок|завершение|завершении|финал|финале|самом|amrap)$/);
   function hasName(chunk) {
     return words(chunk.replace(/\d+(\.\d+)?/g, " ")).some(function (w) { return !PARAMW.test(w) && w.length > 1; });
   }
@@ -313,7 +336,7 @@
     var s = " " + raw + " ", it = { raw: raw.trim(), sets: null, reps: null, kg: null, sec: null, rest: null, side: false, notes: [] }, m;
     var cut = function (re, fn) { s = s.replace(re, function () { var r = fn.apply(null, arguments); return r == null ? " " : r; }); };
     // скобки → заметка
-    cut(/\(([^)]*)\)/g, function (_, t) { if (t.trim()) it.notes.push(t.trim()); });
+    cut(/\(([^)]*)\)/g, function (_, t) { t = t.trim(); if (!t) return; if (eqCue(t) && !/\d/.test(t) && t.split(/\s+/).length <= 3) return " " + t + " "; it.notes.push(t); });
     // темп
     cut(B(/темп\w*\s*([\dxх]{1,2}(?:\s*[-:\/]\s*[\dxх]{1,2}){2,3})/g), function (_, t) { it.notes.push("Темп " + t.replace(/\s+/g, "").replace(/[:\/]/g, "-")); });
     // на сторону
@@ -325,6 +348,8 @@
       var v = num(a); if (b != null) v = v * 60 + (+b); else if (u === "мин" || (!u && v <= 5)) v = v * 60; it.rest = Math.round(v);
     });
     cut(B(/(\d+(?:\.\d+)?)\s*(мин|сек)\s*отдых\w*/g), function (_, a, u) { var v = num(a); it.rest = Math.round(u === "мин" ? v * 60 : v); });
+    // вес × повторы одного подхода: «60 кг × 8»
+    cut(/(\d+(?:\.\d+)?)\s*кг\s*[xх×*]\s*(\d+)(?!\s*(?:кг|сек|мин))/g, function (_, a, b) { it.kg = [num(a)]; it.reps = [+b]; });
     // вес: лесенка и одиночный
     cut(/(\d+(?:\.\d+)?)((?:\s*[\/-]\s*\d+(?:\.\d+)?)+)\s*кг/g, function (_, a, rest) { it.kg = [num(a)].concat(rest.split(/[\/-]/).filter(function (x) { return x.trim(); }).map(num)); });
     cut(/(?:с\s+)?(?:весом|вес)\s+(\d+(?:\.\d+)?)(?:\s*кг)?/g, function (_, a) { it.kg = [num(a)]; });
@@ -401,6 +426,88 @@
     return out;
   }
 
+  function mergeRows(it, rows) {
+    var fill = function (r) { ["sets", "reps", "kg", "sec", "rest"].forEach(function (k) { if (r[k] != null && it[k] == null) it[k] = r[k]; }); };
+    var R = rows.filter(function (r) { return (r.reps || r.kg || r.sec) && !(r.sets > 1); });
+    if (R.length >= 2) {
+      var first = function (l) { return l && l.length ? l[0] : null; };
+      it.sets = R.length;
+      if (R.some(function (r) { return r.reps; })) it.reps = R.map(function (r) { return first(r.reps) != null ? first(r.reps) : first(it.reps) || first(R.filter(function (q) { return q.reps; })[0].reps); });
+      if (R.some(function (r) { return r.sec; })) { it.sec = R.map(function (r) { return first(r.sec) != null ? first(r.sec) : first(R.filter(function (q) { return q.sec; })[0].sec); }); if (!R.some(function (r) { return r.reps; })) it.reps = null; }
+      if (R.some(function (r) { return r.kg; })) it.kg = R.map(function (r) { return first(r.kg) != null ? first(r.kg) : first(R.filter(function (q) { return q.kg; })[0].kg); });
+      rows.forEach(function (r) { if (r.rest != null && it.rest == null) it.rest = r.rest; });
+    } else rows.forEach(fill);
+  }
+
+  /* ---------- текст со скриншота (OCR): строки по рядам, правка цифр, чистка интерфейса ---------- */
+  function ocrFixLine(t) {
+    var tok = t.split(/(\s+)/);
+    for (var i = 0; i < tok.length; i++) {
+      var w = tok[i];
+      if (i === 0 && /^[|()\[\]{}<>«»"'`~_=+*•·▪›‹]+$/.test(w) && tok.length > 2) { tok[i] = ""; continue; }
+      if (i === 0) { w = w.replace(/^[|()\[\]{}<>«»"'`~_=+*•·▪›‹]+(?=[а-яА-ЯёЁa-zA-Z0-9])/, ""); tok[i] = w; if (!w) continue; }
+      if (/^[0-9ЗзОоOlI|xх×*\/.,:-]+$/.test(w) && /\d/.test(w) && /[ЗзОоOlI|]/.test(w)) tok[i] = w.replace(/[Зз]/g, "3").replace(/[ОоO]/g, "0").replace(/[lI|]/g, "1");
+      else if (/^[Зз]$/.test(w) && /^\s*(подх|по\s|раз|сет|[xх×*]\s*\d|повт)/i.test(tok.slice(i + 1).join(""))) tok[i] = "3";
+      else if (/^[Зз][xх×*]\d/.test(w)) tok[i] = "3" + w.slice(1);
+    }
+    return tok.join("").replace(/\s+/g, " ").trim();
+  }
+  var CHROME = {}; ("назад отмена отменить готово изменить редактировать сохранить поделиться начать тренировку тренировка заметки заметка поиск ещё еще далее закрыть"
+    + " back cancel done edit save share start workout notes search more close next finish").split(" ").forEach(function (w) { CHROME[w] = 1; });
+  function ocrNoise(t) {
+    var s = low(t).trim();
+    s = s.replace(/(^|\s)(\d{1,2}[:.]\d{2}(\s*(am|pm))?|lte|5g|4g|3g|wi-?fi|\d{1,3}\s*%|[▪•·.,:;|]+)(?=\s|$)/g, " ").trim();
+    var letters = (s.match(/[а-яa-z]/g) || []).length;
+    var ws = s.replace(/[^а-яa-z\s]/g, " ").trim().split(/\s+/).filter(Boolean);
+    if (ws.length && ws.length <= 4 && ws.every(function (w) { return CHROME[w]; })) return true;
+    if (!s) return true;
+    if (/^\d{1,2}[:.]\d{2}(\s*(am|pm))?$/.test(s)) return true;                       // часы в статус-баре
+    if (/^(lte|5g|4g|3g|e|wi-?fi|\d{1,3}\s*%|[.,:;'"`|_~^•·\-–—=+*#()[\]{}<>\/\\]+)$/.test(s)) return true;
+    if (letters < 2 && !/\d/.test(s)) return true;
+    if (letters === 0 && /^\d{1,3}$/.test(s)) return true;                                // одиночные номера, бейджи
+    return false;
+  }
+  /* lines: [{text, conf, x0, y0, x1, y1}] одной картинки → текст по рядам сверху вниз */
+  function ocrText(lines) {
+    var L = (lines || []).filter(function (l) { return l && String(l.text || "").trim() && !(l.conf != null && l.conf < 35 && !/\d/.test(l.text)); })
+      .map(function (l) { return { t: ocrFixLine(String(l.text)), x0: +l.x0 || 0, x1: +l.x1 || 0, y0: +l.y0 || 0, y1: +l.y1 || 0 }; })
+      .filter(function (l) { return !ocrNoise(l.t); });
+    L.sort(function (a, b) { return (a.y0 + a.y1) - (b.y0 + b.y1); });
+    var rows = [];
+    L.forEach(function (l) {
+      var cy = (l.y0 + l.y1) / 2, h = Math.max(1, l.y1 - l.y0), r = null;
+      for (var k = rows.length - 1; k >= 0 && k >= rows.length - 3; k--) {
+        var q = rows[k], ov = Math.min(q.y1, l.y1) - Math.max(q.y0, l.y0);
+        if (ov > 0.5 * Math.min(h, q.y1 - q.y0) && q.items.every(function (o) { return o.x1 <= l.x0 + 4 || l.x1 <= o.x0 + 4; })) { r = q; break; }
+      }
+      if (r) { r.items.push(l); r.y0 = Math.min(r.y0, l.y0); r.y1 = Math.max(r.y1, l.y1); }
+      else rows.push({ y0: l.y0, y1: l.y1, items: [l] });
+    });
+    var txt = rows.map(function (r) { return r.items.sort(function (a, b) { return a.x0 - b.x0; }).map(function (o) { return o.t; }).join("  "); });
+    var out = [];
+    txt.forEach(function (t) {
+      var p = out[out.length - 1];
+      if (p != null && !/\d/.test(p) && /^[а-яё]/.test(t) && !/^(\d|подход|повтор|сет|отдых)/.test(t) && (/(^|\s)(с|со|на|в|и|по|для|из|к)$/i.test(p) || !/\d/.test(t) && t.split(/\s+/).length <= 2)) out[out.length - 1] = p + " " + t;
+      else out.push(t);
+    });
+    return out.join("\n");
+  }
+  /* несколько скриншотов подряд: убрать строки, повторившиеся на стыке при прокрутке */
+  function ocrJoin(texts) {
+    var out = [];
+    texts.forEach(function (t, i) {
+      var ls = String(t || "").split("\n");
+      if (i > 0 && out.length) {
+        /* перекрытие при прокрутке: последняя строка из начала нового кадра, которая уже была в конце предыдущего; обрезанные строки до неё тоже лишние */
+        var tail = out.slice(-14).map(learnKey), cut = -1;
+        for (var j = 0; j < Math.min(ls.length, 14); j++) { var kk = learnKey(ls[j]); if (kk.replace(/[^а-яa-z]/g, "").length >= 4 && tail.indexOf(kk) > -1) cut = j; }
+        if (cut > -1) { while (cut + 1 < ls.length && tail.indexOf(learnKey(ls[cut + 1])) > -1) cut++; ls = ls.slice(cut + 1); }
+      }
+      out = out.concat(ls);
+    });
+    return out.join("\n");
+  }
+
   function learnKey(s) { return words(low(s)).map(stem).join(" ").trim(); }
 
   function parse(text, ctx) {
@@ -415,6 +522,12 @@
       if (!L) { group = null; circ = null; blank++; return; }
       lineNo++;
       var nl = normText(L), m;
+      // «Маша — день 2»: строка-подпись дня
+      if (!nl.match(DAY) && /(^|[\s—–-])(день|day|неделя|week|тренировка)\s*№?\s*\d{1,2}\s*$/.test(nl) && !/\d/.test(nl.replace(/(день|day|неделя|week|тренировка)\s*№?\s*\d{1,2}\s*$/, ""))) {
+        var dt2 = L.trim();
+        if (cur.items.length || cur.title) { cur = { title: dt2, items: [] }; days.push(cur); } else cur.title = dt2;
+        group = null; circ = null; return;
+      }
       // заголовок дня
       if ((m = nl.match(DAY)) && (!m[4] || !/\d/.test(m[4]) || m[4].length < 3)) {
         var dt = L.replace(/[:.\-–—\s]+$/, "").trim();
@@ -433,7 +546,8 @@
       // нумерация 1а/1б
       var lab = null;
       nl = nl.replace(/^\s*(\d{1,2})\s*([абвгabcd])\s*[).:\-–]?\s+/, function (_, n, l) { lab = n; return ""; });
-      nl = nl.replace(/^\s*\d{1,2}\s*[).:]\s*/, "").replace(/^\s*\d{1,2}\s+(?=[а-яa-z])/, "");
+      nl = nl.replace(/^\s*\d{1,2}\s*[).:]\s*/, "").replace(/^\s*\d{1,2}\s+(?=[а-яa-z])(?!(?:подх|повт|раз|сек|мин|кг|по|на|x|х)(?![а-яa-z]))/, "");
+      if (!hasName(nl)) nl = nl.replace(/^\s*(?:подх\s*)?\d{1,2}\s+(?=\d[\d.,]*\s*(?:кг|x|повт|сек|@))/, "").replace(/^\s*(?:w|р)\s+(?=\d)/, "");
       // делим на части
       var parts = [];
       nl.split(SEP).forEach(function (p0) { splitByNames(p0, cat).forEach(function (p) {
@@ -451,7 +565,7 @@
           if (!it.name) {
             // продолжение предыдущего упражнения (голос: «присед. четыре по восемь»)
             var prev = cur.items[cur.items.length - 1];
-            if (prev) { ["sets", "reps", "kg", "sec", "rest"].forEach(function (k) { if (it[k] != null && prev[k] == null) prev[k] = it[k]; }); if (it.side) prev.side = true; prev.notes = prev.notes.concat(it.notes); prev.raw += " " + it.raw; }
+            if (prev) { (prev.rows = prev.rows || []).push(it); if (it.side) prev.side = true; prev.notes = prev.notes.concat(it.notes); prev.raw += " " + it.raw; }
             return;
           }
           it.group = pg || (lab ? "n" + lab : group);
@@ -461,6 +575,8 @@
         });
       });
     });
+    // строки без названия под упражнением: одна — дополняет, несколько построчных подходов — это подходы
+    days.forEach(function (d) { d.items.forEach(function (it) { if (it.rows) { mergeRows(it, it.rows); delete it.rows; } }); });
     // группы по меткам 1а/1б: одиночная метка — не суперсет
     days.forEach(function (d) {
       var cnt = {}; d.items.forEach(function (it) { if (it.group) cnt[it.group] = (cnt[it.group] || 0) + 1; });
@@ -477,12 +593,13 @@
     });
     // название тренировки: первая строка без чисел, не упражнение
     var d0 = days[0];
-    if (d0.items.length >= 2 && d0.items[0].line === 1 && d0.items[0].conf !== "ok" && !d0.items[0].sets && !d0.items[0].reps && !d0.items[0].sec && !d0.items[0].kg
+    if (d0.items.length >= 2 && d0.items[0].line <= 2 && d0.items[0].conf !== "ok" && !d0.items[0].sets && !d0.items[0].reps && !d0.items[0].sec && !d0.items[0].kg
       && words(d0.items[0].name).length <= 5 && (d0.items[0].conf === "none" || /трениров|день|ноги|верх|низ|спина|грудь|ягодиц|фулбади|full|руки|плечи|кор|пресс|тонус|сила|кардио|мобил/.test(d0.items[0].name))) {
       var tl = d0.items.shift(); title = tl.raw.replace(/[:.\s]+$/, ""); title = title.charAt(0).toUpperCase() + title.slice(1);
       nItems--; if (tl.conf === "check") nCheck--; else if (tl.conf === "none") nNone--; else nOk--;
     }
     days = days.filter(function (d) { return d.items.length; });
+    if (!title && days.length === 1 && days[0].title) title = days[0].title.replace(/[:.\s]+$/, "");
     if (!days.length) days = [{ title: "", items: [] }];
     return { title: title, days: days, stats: { items: nItems, ok: nOk, check: nCheck, none: nNone, ms: Date.now() - t0 } };
   }
@@ -516,6 +633,6 @@
     return out.map(function (x) { return String(x.id); });
   }
 
-  var API = { parse: parse, match: match, alts: alts, learnKey: learnKey, normText: normText, parseChunk: parseChunk, eqCue: eqCue, _slang: SLANG };
+  var API = { ocrText: ocrText, ocrJoin: ocrJoin, ocrFixLine: ocrFixLine, parse: parse, match: match, alts: alts, learnKey: learnKey, normText: normText, parseChunk: parseChunk, eqCue: eqCue, _slang: SLANG };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.AIB = API;
 })(typeof window !== "undefined" ? window : this);
