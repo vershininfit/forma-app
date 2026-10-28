@@ -1,0 +1,10 @@
+[{"name":"home","state":"state-base.json","steps":[]},
+ {"name":"moi","state":"state-base.json","steps":["tab:Тренировки"]},
+ {"name":"prog","state":"state-base.json","steps":["tab:Тренировки","text:Прогресс"]},
+ {"name":"ready","state":"state-base.json","steps":["tab:Тренировки","text:Готовые"]},
+ {"name":"lib","state":"state-base.json","steps":["tab:Тренировки","text:Библиотека"]},
+ {"name":"coach","state":"state-base.json","steps":["tab:Тренер"]},
+ {"name":"prof","state":"state-base.json","steps":["tab:Профиль"]},
+ {"name":"live","state":"state-base.json","steps":["text:Начать тренировку"]},
+ {"name":"clients","state":"state-tr.json","steps":[]},
+ {"name":"constr","state":"state-base.json","steps":["tab:Тренировки","#fab"]}]
