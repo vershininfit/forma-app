@@ -1,5 +1,5 @@
 // Forma service worker: HTML всегда с сети (правки приходят сразу), оффлайн — из кэша.
-const V="20261029-2345";
+const V="20261030-0030";
 const C = "forma-" + V;
 const PRE = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon-180.png", "./fonts/fonts.css", "./lib/zxing.min.js", "./data/base_products.json", "./data/ru_products.json", "./fonts/onest-cyrillic-wght-normal.woff2", "./fonts/onest-latin-wght-normal.woff2"];
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(PRE)).catch(() => {})); });
@@ -7,6 +7,7 @@ self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Pro
 self.addEventListener("fetch", e => {
   const r = e.request;
   if (r.method !== "GET" || new URL(r.url).origin !== location.origin) return;
+  if (/^\/(v1\/|health$)/.test(new URL(r.url).pathname)) return;   // API и проверка живости: всегда с сети, не из кэша
   const nav = r.mode === "navigate" || /\.(html|webmanifest)$/.test(new URL(r.url).pathname);
   if (nav) {
     e.respondWith(fetch(r, { cache: "no-store" }).then(res => { const cp = res.clone(); caches.open(C).then(c => c.put(r, cp)); return res; })
