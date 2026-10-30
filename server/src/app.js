@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { signToken, readToken, checkCode, inviteCode, Limiter } from './auth.js';
+import { installLogin } from './login.js';
 
 const TOKEN_TTL = 60 * 24 * 3600;        // 60 дней, обновляется при каждом заходе в /v1/me
 const MAX_BODY = 512 * 1024;
@@ -15,7 +16,7 @@ class HttpError extends Error {
 }
 const bad = (code, extra) => new HttpError(400, code, extra);
 
-export function createApp({ db, secret, trustProxy = false, log = () => {}, sms = { send: async () => {} }, demo = null, smsDailyCap = 500, phoneAuth = false, push = null, origins = null }) {
+export function createApp({ db, secret, trustProxy = false, log = () => {}, sms = { send: async () => {} }, demo = null, smsDailyCap = 500, phoneAuth = false, push = null, origins = null, login = {} }) {
   if (!secret || secret.length < 32) throw new Error('SECRET must be at least 32 chars');
   const lim = new Limiter();
   const sockets = new Map();             // userId -> Set<ws>
@@ -396,7 +397,7 @@ export function createApp({ db, secret, trustProxy = false, log = () => {}, sms 
     const u = await auth(req);
     const lk = (await db.query("SELECT coach_id FROM links WHERE client_id=$1 AND status='active'", [u.id])).rows;
     const cl = (await db.query("SELECT client_id FROM links WHERE coach_id=$1 AND status='active'", [u.id])).rows;
-    await db.query('UPDATE users SET deleted_at=now(), device_id=NULL, email=NULL, phone=NULL, name=$2 WHERE id=$1', [u.id, '']);
+    await db.query('UPDATE users SET deleted_at=now(), device_id=NULL, email=NULL, phone=NULL, pprofile=NULL, pprofile_at=NULL, name=$2 WHERE id=$1', [u.id, '']);
     await db.query('DELETE FROM docs WHERE user_id=$1', [u.id]);
     await db.query('DELETE FROM sessions WHERE user_id=$1', [u.id]);
     await db.query('DELETE FROM weights WHERE user_id=$1', [u.id]);
@@ -449,7 +450,11 @@ export function createApp({ db, secret, trustProxy = false, log = () => {}, sms 
       throw new HttpError(403, 'bad_code', { attemptsLeft: Math.max(0, 4 - o.attempts) });
     }
     await db.query('UPDATE otps SET used=true WHERE id=$1', [o.id]);
-    // кто входит: аккаунт с этим телефоном (вернулся после переустановки) или текущий гостевой аккаунт устройства, или новый
+    return phoneSession(req, phone, 'sms');
+  });
+  // Общий вход по подтверждённому номеру (SMS-код, Telegram, VK ID, Яндекс ID).
+  // Кто входит: аккаунт с этим телефоном (вернулся после переустановки) или текущий гостевой аккаунт устройства, или новый.
+  async function phoneSession(req, phone, via) {
     let cur = null; const h = req.headers.authorization || '';
     if (h.startsWith('Bearer ')) cur = await userFromToken(h.slice(7));
     const owner = (await db.query('SELECT id, role FROM users WHERE phone=$1 AND deleted_at IS NULL', [phone])).rows[0];
@@ -457,10 +462,11 @@ export function createApp({ db, secret, trustProxy = false, log = () => {}, sms 
     if (owner) { uid = owner.id; restored = !cur || cur.id !== owner.id; }
     else if (cur) { await db.query('UPDATE users SET phone=$2 WHERE id=$1', [cur.id, phone]); uid = cur.id; }
     else { uid = crypto.randomUUID(); await db.query('INSERT INTO users(id, phone) VALUES($1,$2)', [uid, phone]); }
-    const u = (await db.query('SELECT role FROM users WHERE id=$1', [uid])).rows[0];
-    await audit(uid, 'phone.login', null, { restored });
-    return { token: mint(uid), userId: uid, role: u.role, restored };   // restored: аккаунт найден по телефону, данные с сервера побеждают локальные пустые
-  });
+    const u = (await db.query('SELECT role, pprofile IS NOT NULL AS has_profile FROM users WHERE id=$1', [uid])).rows[0];
+    await audit(uid, 'phone.login', null, { restored, via });
+    return { token: mint(uid), userId: uid, role: u.role, restored, phone, hasProfile: !!u.has_profile };   // restored: аккаунт найден по телефону, данные с сервера побеждают локальные пустые
+  }
+  installLogin({ db, route, auth, bad, HttpError, lim, ip, normPhone, phoneSession, audit, cfg: login, log });
 
   // ---------- персональные промокоды программ ----------
   const CODE_RE = /^[A-ZА-ЯЁ0-9_-]{6,24}$/;

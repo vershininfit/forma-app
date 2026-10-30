@@ -1,5 +1,6 @@
 import http from 'node:http';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { WebSocket } from 'ws';
 import { createApp } from '../src/app.js';
 import { memDb, pgPool } from '../src/db.js';
@@ -11,9 +12,20 @@ if (process.env.TEST_DATABASE_URL) {
   const { default: pg } = await import('pg'); const c = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL }); await c.connect();
   await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public'); await c.end(); db = await pgPool(process.env.TEST_DATABASE_URL);
 } else db = await memDb();
+const tgSent = []; const oauthCalls = []; let oauthPhone = { vk: '+7 (912) 000-11-22', yandex: '+79120001122' };
+async function fakeFetch(url, o = {}) {
+  const u = String(url); const body = o.body ? Object.fromEntries(new URLSearchParams(o.body)) : {}; oauthCalls.push({ u, body, h: o.headers });
+  const J = (x, st = 200) => ({ ok: st < 400, status: st, json: async () => x });
+  if (u === 'https://id.vk.com/oauth2/auth') return body.code === 'good' ? J({ access_token: 'vkt' }) : J({ error: 'invalid_grant' }, 400);
+  if (u === 'https://id.vk.com/oauth2/user_info') return J({ user: oauthPhone.vk === null ? {} : { phone: oauthPhone.vk } });
+  if (u === 'https://oauth.yandex.ru/token') return body.code === 'good' ? J({ access_token: 'yat' }) : J({ error: 'bad' }, 400);
+  if (u.startsWith('https://login.yandex.ru/info')) return J(oauthPhone.yandex === null ? {} : { default_phone: { id: 1, number: oauthPhone.yandex } });
+  return J({}, 404);
+}
 let lastSms = null; const pushed = [];
 const mockPush = { publicKey: 'PUBKEY', send: async (s, p) => { if (s.endpoint.includes('/gone/')) { const e = new Error('gone'); e.gone = true; throw e; } pushed.push({ s, p }); } };
-const app = createApp({ db, secret: 'x'.repeat(40), sms: { send: async (p, t) => { lastSms = { p, t }; } }, demo: { phone: '+79990000000', code: '123456' }, phoneAuth: true, push: mockPush });
+const app = createApp({ db, secret: 'x'.repeat(40), sms: { send: async (p, t) => { lastSms = { p, t }; } }, demo: { phone: '+79990000000', code: '123456' }, phoneAuth: true, push: mockPush,
+  login: { tg: { botName: 'forma_test_bot', secret: 'S'.repeat(24), api: async (m, pl) => { tgSent.push({ m, pl }); } }, oauth: { redirect: 'https://appforma.test/', vk: { clientId: '777' }, yandex: { clientId: 'yid', clientSecret: 'ysec' }, fetch: fakeFetch } } });
 const server = http.createServer(app.handler); const wsh = app.attachWs(server);
 await new Promise((r) => server.listen(0, r));
 const base = 'http://127.0.0.1:' + server.address().port;
@@ -268,6 +280,66 @@ await api('POST', '/v1/push/unsubscribe', M2.token, {}); assert.equal((await db.
 const appNo = createApp({ db, secret: 'z'.repeat(40) }); const srvNo = http.createServer(appNo.handler); await new Promise((rs) => srvNo.listen(0, rs));
 const rNo = await fetch('http://127.0.0.1:' + srvNo.address().port + '/v1/push/key'); assert.equal((await rNo.json()).key, null); ok('без ключей VAPID push выключен, сервер работает как раньше');
 srvNo.close(); appNo.close();
+
+{ // 13а. вход без платных SMS: Telegram-бот, VK ID, Яндекс ID, анкета по номеру
+const HOOK = '/v1/tg/hook/' + 'S'.repeat(24);
+const tgMsg = (o) => api('POST', HOOK, null, { message: { chat: { id: 501, type: 'private' }, from: { id: 501 }, ...o } });
+r = await api('GET', '/v1/auth/methods'); assert.deepEqual(r.b, { telegram: true, vk: true, yandex: true }); ok('сервер сообщает, какие способы входа включены');
+const G = await dev(40);
+r = await api('POST', '/v1/auth/tg/start', G.token, { phone: '8 (912) 000-11-22' }); assert.equal(r.s, 200); assert.match(r.b.url, /^https:\/\/t\.me\/forma_test_bot\?start=[A-Za-z0-9_-]{16,}$/); const NONCE = r.b.nonce;
+assert.equal((await api('POST', '/v1/auth/tg/start', G.token, { phone: '123' })).b.error, 'bad_phone'); ok('Telegram: вход начинается с введённого номера, плохой номер отклоняется');
+r = await api('POST', '/v1/auth/tg/check', G.token, { nonce: NONCE }); assert.equal(r.b.status, 'wait'); ok('пока человек не поделился номером, проверка отвечает «ждём»');
+assert.equal((await api('POST', '/v1/tg/hook/' + 'X'.repeat(24), null, { message: {} })).s, 404); ok('webhook с чужим секретом: 404');
+tgSent.length = 0; await tgMsg({ text: '/start ' + NONCE }); assert.equal(tgSent.length, 1); assert.equal(tgSent[0].pl.reply_markup.keyboard[0][0].request_contact, true); ok('бот просит поделиться номером кнопкой');
+await tgMsg({ contact: { phone_number: '79120001122', user_id: 999 } });
+assert.equal((await api('POST', '/v1/auth/tg/check', G.token, { nonce: NONCE })).b.status, 'wait'); ok('чужой контакт (user_id не автора) не засчитывается');
+await tgMsg({ contact: { phone_number: '79990009999', user_id: 501 } });
+r = await api('POST', '/v1/auth/tg/check', G.token, { nonce: NONCE }); assert.equal(r.s, 403); assert.equal(r.b.error, 'mismatch'); ok('номер в Telegram не совпал с введённым: отказ');
+r = await api('POST', '/v1/auth/tg/start', G.token, { phone: '+79120001122' }); const N2 = r.b.nonce;
+await tgMsg({ text: '/start ' + N2 }); await tgMsg({ contact: { phone_number: '+7 912 000-11-22', user_id: 501 } });
+r = await api('POST', '/v1/auth/tg/check', G.token, { nonce: N2 }); assert.equal(r.s, 200); assert.equal(r.b.status, 'ok'); assert.equal(r.b.phone, '+79120001122'); assert.equal(r.b.restored, false); assert.equal(r.b.hasProfile, false);
+assert.equal(r.b.userId, G.userId); ok('номер совпал: гостевой аккаунт устройства получает этот телефон');
+assert.equal((await api('POST', '/v1/auth/tg/check', G.token, { nonce: N2 })).s, 410); ok('вход по одному nonce работает один раз');
+r = await api('GET', '/v1/me/profile', G.token); assert.equal(r.b.phone, '+79120001122'); assert.equal(r.b.profile, null);
+const PROF = { name: 'Анна', sex: 'f', birth: '1990-05-17', h: 168, w: 62, goal: 'shape', lvl: 2, where: 'home', eq: ['body', 'trx'], cau: ['колени'], coach: { mode: 'self', code: '' }, evil: '<script>', hm: { a: 1 } };
+r = await api('PUT', '/v1/me/profile', G.token, { profile: PROF }); assert.equal(r.s, 200);
+r = await api('GET', '/v1/me/profile', G.token); assert.equal(r.b.profile.name, 'Анна'); assert.equal(r.b.profile.birth, '1990-05-17'); assert.equal(r.b.profile.evil, undefined); assert.deepEqual(r.b.profile.eq, ['body', 'trx']); ok('анкета сохраняется по номеру, лишние поля отбрасываются');
+assert.equal((await api('PUT', '/v1/me/profile', G.token, { profile: { hm: { a: 'x'.repeat(40000) } } })).s, 400);
+assert.equal((await api('PUT', '/v1/me/profile', G.token, {})).s, 400);
+const Gst = await dev(41); assert.equal((await api('PUT', '/v1/me/profile', Gst.token, { profile: PROF })).s, 403); ok('анкету нельзя записать без номера, слишком большая анкета отклоняется');
+// новый телефон/переустановка: другое устройство входит тем же номером и получает свою анкету
+const G2 = await dev(42);
+r = await api('POST', '/v1/auth/tg/start', G2.token, { phone: '+79120001122' }); await tgMsg({ text: '/start ' + r.b.nonce }); await tgMsg({ contact: { phone_number: '79120001122', user_id: 501 } });
+r = await api('POST', '/v1/auth/tg/check', G2.token, { nonce: r.b.nonce }); assert.equal(r.b.userId, G.userId); assert.equal(r.b.restored, true); assert.equal(r.b.hasProfile, true);
+r = await api('GET', '/v1/me/profile', r.b.token); assert.equal(r.b.profile.name, 'Анна'); ok('вход тем же номером с другого телефона: «как к себе домой», анкета на месте');
+r = await api('POST', '/v1/auth/tg/start', G2.token, { phone: '+79120001122' }); await tgMsg({ text: '/start ' + r.b.nonce });
+await db.query("UPDATE tg_logins SET expires_at = now() - interval '1 second' WHERE nonce=$1", [r.b.nonce]);
+assert.equal((await api('POST', '/v1/auth/tg/check', G2.token, { nonce: r.b.nonce })).s, 410); ok('просроченный вход через Telegram не проходит');
+// VK ID
+r = await api('POST', '/v1/auth/oauth/start', null, { provider: 'vk' }); assert.equal(r.s, 200);
+const vu = new URL(r.b.url); assert.equal(vu.origin + vu.pathname, 'https://id.vk.com/authorize'); assert.equal(vu.searchParams.get('client_id'), '777'); assert.equal(vu.searchParams.get('code_challenge_method'), 'S256'); assert.equal(vu.searchParams.get('scope'), 'phone'); assert.equal(vu.searchParams.get('redirect_uri'), 'https://appforma.test/');
+const VS = r.b.state;
+oauthCalls.length = 0; const Gv = await dev(43);
+r = await api('POST', '/v1/auth/oauth/finish', Gv.token, { state: VS, code: 'good', deviceId: 'vkdev' }); assert.equal(r.s, 200); assert.equal(r.b.phone, '+79120001122'); assert.equal(r.b.restored, true); assert.equal(r.b.hasProfile, true);
+const ex = oauthCalls.find((c) => c.u === 'https://id.vk.com/oauth2/auth').body; assert.equal(ex.code, 'good'); assert.equal(ex.device_id, 'vkdev'); assert.equal(ex.state, VS);
+assert.equal(crypto.createHash('sha256').update(ex.code_verifier).digest('base64url'), vu.searchParams.get('code_challenge')); ok('VK ID: код обменивается с PKCE-проверкой, номер входит в тот же аккаунт');
+assert.equal((await api('POST', '/v1/auth/oauth/finish', Gv.token, { state: VS, code: 'good' })).s, 410); ok('state одноразовый: повтор отклоняется');
+r = await api('POST', '/v1/auth/oauth/start', null, { provider: 'vk' }); r = await api('POST', '/v1/auth/oauth/finish', Gv.token, { state: r.b.state, code: 'wrong' }); assert.equal(r.s, 502); ok('VK ID: провайдер отказал — 502');
+oauthPhone.vk = null; r = await api('POST', '/v1/auth/oauth/start', null, { provider: 'vk' }); r = await api('POST', '/v1/auth/oauth/finish', Gv.token, { state: r.b.state, code: 'good' }); assert.equal(r.s, 422); assert.equal(r.b.error, 'no_phone'); oauthPhone.vk = '+7 (912) 000-11-22'; ok('провайдер не отдал номер: 422 no_phone');
+// Яндекс ID
+r = await api('POST', '/v1/auth/oauth/start', null, { provider: 'yandex' }); const yu = new URL(r.b.url); assert.equal(yu.origin + yu.pathname, 'https://oauth.yandex.ru/authorize'); assert.equal(yu.searchParams.get('scope'), 'login:default_phone');
+const Gy = await dev(44); oauthCalls.length = 0;
+r = await api('POST', '/v1/auth/oauth/finish', Gy.token, { state: r.b.state, code: 'good' }); assert.equal(r.s, 200); assert.equal(r.b.phone, '+79120001122'); assert.equal(r.b.userId, G.userId);
+assert.equal(oauthCalls.find((c) => c.u.startsWith('https://login.yandex.ru/info')).h.authorization, 'OAuth yat'); ok('Яндекс ID: номер из default_phone, вход в тот же аккаунт');
+assert.equal((await api('POST', '/v1/auth/oauth/start', null, { provider: 'google' })).s, 400); ok('неизвестный провайдер отклоняется');
+// без настройки способы входа выключены
+const appOff = createApp({ db, secret: 'q'.repeat(40) }); const srvOff = http.createServer(appOff.handler); await new Promise((rs) => srvOff.listen(0, rs)); const bo = 'http://127.0.0.1:' + srvOff.address().port;
+assert.deepEqual(await (await fetch(bo + '/v1/auth/methods')).json(), { telegram: false, vk: false, yandex: false });
+assert.equal((await fetch(bo + '/v1/auth/tg/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: '+79120001122' }) })).status, 404);
+assert.equal((await fetch(bo + '/v1/auth/oauth/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'vk' }) })).status, 404); srvOff.close(); appOff.close(); ok('без ключей Telegram, VK ID и Яндекс ID выключены');
+// удаление аккаунта стирает анкету
+r = await api('DELETE', '/v1/account', G.token); assert.equal(r.s, 200); assert.equal((await db.query('SELECT pprofile IS NULL AS n, phone IS NULL AS p FROM users WHERE id=$1', [G.userId])).rows[0].n, true); ok('удаление аккаунта стирает анкету и номер');
+}
 
 // 14. вход по телефону выключен по умолчанию
 const app2 = createApp({ db, secret: 'y'.repeat(40) }); const srv2 = http.createServer(app2.handler); await new Promise((r) => srv2.listen(0, r));

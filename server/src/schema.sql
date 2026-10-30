@@ -152,3 +152,28 @@ CREATE TABLE IF NOT EXISTS push_subs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id);
+
+-- ===== Вход без платных SMS: Telegram-бот, VK ID, Яндекс ID; анкета хранится по номеру телефона =====
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pprofile    jsonb;          -- анкета: имя, пол, дата рождения, рост, вес, цель, уровень, оборудование, ограничения, тренер
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pprofile_at timestamptz;
+
+-- ожидающие входы через Telegram: nonce знает только приложение, начавшее вход
+CREATE TABLE IF NOT EXISTS tg_logins (
+  nonce      text PRIMARY KEY,
+  phone      text NOT NULL,                 -- номер, который человек ввёл в приложении
+  chat_id    text,
+  from_id    text,
+  tg_phone   text,                          -- номер, подтверждённый кнопкой «Поделиться номером»
+  status     text NOT NULL DEFAULT 'wait' CHECK (status IN ('wait','ok','mismatch','used')),
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tg_logins_chat ON tg_logins(chat_id, from_id);
+
+-- состояние OAuth (VK ID, Яндекс ID): одноразовое, хранит PKCE-проверочную строку
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state      text PRIMARY KEY,
+  provider   text NOT NULL,
+  verifier   text,
+  expires_at timestamptz NOT NULL
+);

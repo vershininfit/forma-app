@@ -32,6 +32,15 @@ services:
       VAPID_SUBJECT: mailto:${ADMIN_EMAIL}
       ALLOWED_ORIGINS: https://${DOMAIN}
       TRUST_PROXY: "1"
+      # вход без платных SMS (необязательно): пока пусто, способ выключен. Значения вносятся в /opt/forma/.env
+      PUBLIC_URL: https://${DOMAIN}
+      TG_BOT_NAME: ${TG_BOT_NAME:-}
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
+      TG_SECRET: ${TG_SECRET:-}
+      TG_API_BASE: ${TG_API_BASE:-}
+      VK_CLIENT_ID: ${VK_CLIENT_ID:-}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
 
   web:
     image: caddy:2-alpine
