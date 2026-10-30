@@ -64,21 +64,21 @@ export function installLogin({ db, route, auth, bad, HttpError, lim, ip, normPho
       if (!nonce) { await tgSend(chat, 'Это бот входа в Forma. Откройте приложение и нажмите «Далее» после ввода номера.'); return { ok: true }; }
       const r = await db.query("UPDATE tg_logins SET chat_id=$2, from_id=$3 WHERE nonce=$1 AND status='wait' AND expires_at>now() RETURNING nonce", [nonce, chat, from]);
       if (!r.rows.length) { await tgSend(chat, 'Ссылка устарела. Вернитесь в Forma и нажмите «Далее» ещё раз.'); return { ok: true }; }
-      await tgSend(chat, 'Чтобы подтвердить вход в Forma, нажмите кнопку «Поделиться номером».', { keyboard: [[{ text: 'Поделиться номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true });
+      await tgSend(chat, 'Привет! Это вход в Forma.\nНажмите кнопку ниже, и ваша анкета и тренировки будут с вами на любом телефоне.', { keyboard: [[{ text: 'Войти в Forma', request_contact: true }]], resize_keyboard: false, one_time_keyboard: true, input_field_placeholder: 'Нажмите «Войти в Forma»' });
       return { ok: true };
     }
     if (msg.contact) {
       // номер принимается только свой: contact.user_id совпадает с автором сообщения
-      if (String(msg.contact.user_id || '') !== from) { await tgSend(chat, 'Поделитесь именно своим номером кнопкой ниже.'); return { ok: true }; }
+      if (String(msg.contact.user_id || '') !== from) { await tgSend(chat, 'Нажмите кнопку «Войти в Forma» ниже: так мы узнаем ваш номер.'); return { ok: true }; }
       const row = (await db.query("SELECT nonce, phone FROM tg_logins WHERE chat_id=$1 AND from_id=$2 AND status='wait' AND expires_at>now() ORDER BY created_at DESC LIMIT 1", [chat, from])).rows[0];
       if (!row) { await tgSend(chat, 'Нет ожидающего входа. Вернитесь в Forma и нажмите «Далее».', { remove_keyboard: true }); return { ok: true }; }
       const shared = normPhone(msg.contact.phone_number);
       if (shared && shared === row.phone) {
         await db.query("UPDATE tg_logins SET status='ok', tg_phone=$2 WHERE nonce=$1 AND status='wait'", [row.nonce, shared]);
-        await tgSend(chat, 'Готово. Вернитесь в Forma.', { remove_keyboard: true });
+        await tgSend(chat, 'Вы вошли. Возвращайтесь в Forma.', { remove_keyboard: true });
       } else {
         await db.query("UPDATE tg_logins SET status='mismatch' WHERE nonce=$1 AND status='wait'", [row.nonce]);
-        await tgSend(chat, 'Номер в Telegram не совпал с введённым в Forma. Вернитесь в приложение и проверьте номер.', { remove_keyboard: true });
+        await tgSend(chat, 'Номер в Telegram не совпал с тем, что вы ввели в Forma. Вернитесь в приложение и проверьте номер.', { remove_keyboard: true });
       }
       return { ok: true };
     }
