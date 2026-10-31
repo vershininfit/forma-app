@@ -15,7 +15,9 @@ async function nav(p,steps){for(const s of steps){const f=await af(p);try{
   if(s.startsWith('tab:'))await f.locator(`button.tab[aria-label="${s.slice(4)}"]`).first().click({timeout:3000});
   else if(s.startsWith('text:'))await f.getByText(s.slice(5),{exact:true}).locator('visible=true').first().click({timeout:3000});
   else if(s.startsWith('ptext:'))await f.getByText(s.slice(6)).locator('visible=true').first().click({timeout:3000});
-  else await f.click(s,{timeout:3000});}catch(e){return 'NAVFAIL '+s}await p.waitForTimeout(1100)}}
+  else await f.click(s,{timeout:3000});}catch(e){return 'NAVFAIL '+s}await p.waitForTimeout(1100)}
+ /* окно новой медали (всплывает в Прогрессе) закрываем, иначе оно перекрывает все кнопки */
+ await p.waitForTimeout(600);for(const fx of [p.mainFrame(),await af(p)]){try{if(await fx.$('#mdOv.on')){await fx.locator('#mdOv').getByText('Отлично',{exact:true}).first().click({timeout:2000});await p.waitForTimeout(700)}}catch(e){}}}
 async function sig(p){const f=await af(p);const fr=await p.evaluate(()=>{const e=document.querySelector('iframe.on');return e?[...document.querySelectorAll('iframe')].indexOf(e):-1});
  const body=await f.evaluate(()=>{const v=[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight&&getComputedStyle(e).visibility!=='hidden'&&+getComputedStyle(e).opacity>0.05});return v.length+':'+(document.body.innerText||'').length+':'+document.querySelectorAll('.on,.open,.sel').length+':'+v.slice(0,400).map(e=>e.className).join('').length});
  const sh=await p.evaluate(()=>[...document.body.children].filter(e=>e.tagName!=='IFRAME'&&e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden').map(e=>e.id+e.className).join(',')+document.body.innerText.length);

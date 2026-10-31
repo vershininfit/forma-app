@@ -2,7 +2,7 @@ const {open,active}=require('./lib');const fs=require('fs');const check=require(
 const ROUTES=[['Главная',[]],['Тренировки',[]],['Тренировки',['text:Прогресс']],['Тренировки',['text:Готовые']],['Тренировки',['text:Библиотека']],['Тренер',[]],['Профиль',[]]];
 async function act(p,a){const f=await active(p);try{ if(a.startsWith('text:')) await f.getByText(a.slice(5),{exact:true}).locator('visible=true').first().click({timeout:3000}); else await f.click(a,{timeout:3000});}catch(e){return 'FAIL '+a}await p.waitForTimeout(1200);}
 async function auditAll(st,vp,tag,routes){routes=routes||ROUTES;const {b,p,log}=await open({state:st,vp});const res={};
- for(const [tab,sub] of routes){const f0=await active(p);try{await f0.locator('button.tab',{hasText:tab}).or(f0.locator(`button.tab[aria-label="${tab}"]`)).first().click({timeout:3000})}catch(e){res[tab]='TABFAIL';continue}
+ for(const [tab,sub] of routes){const f0=await active(p);/* закрыть окно новой медали, если всплыло */for(const fx of [p.mainFrame(),f0]){try{if(await fx.$('#mdOv.on')){await fx.locator('#mdOv').getByText('Отлично',{exact:true}).first().click({timeout:2000});await p.waitForTimeout(700)}}catch(e){}}try{await f0.locator('button.tab',{hasText:tab}).or(f0.locator(`button.tab[aria-label="${tab}"]`)).first().click({timeout:3000})}catch(e){res[tab]='TABFAIL';continue}
   await p.waitForTimeout(1300);for(const a of sub){const r=await act(p,a);if(r)console.log(r)}
   const f=await active(p);const key=tab+(sub.length?'/'+sub.join('/').replace(/text:/g,''):'');
   res[key]=await f.evaluate(`(${check.toString()})()`);
